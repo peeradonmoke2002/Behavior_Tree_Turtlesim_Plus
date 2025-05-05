@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(bt_turtlesim_plus)
+project(turtlesim_plus_teleop)
 
 # Default to C99
 if(NOT CMAKE_C_STANDARD)
@@ -20,6 +20,11 @@ find_package(ament_cmake REQUIRED)		# cpp (optional)
 find_package(rclcpp REQUIRED)			# cpp (optional)
 find_package(ament_cmake_python REQUIRED)   	# python (optional)
 find_package(rclpy REQUIRED)                	# python (optional)
+find_package(rclcpp_action REQUIRED)        # ← ADD THIS
+find_package(geometry_msgs REQUIRED)        # ← ADD THIS
+find_package(turtlesim REQUIRED)            # ← ADD THIS
+find_package(ament_cmake_python REQUIRED)   # for your Python parts
+find_package(rclpy REQUIRED)                # for your Python parts
 ######################################################
 
 # Install Python Module
@@ -28,8 +33,6 @@ ament_python_install_package(${PROJECT_NAME})
 # Install Python executables
 install(PROGRAMS
   scripts/dummy_script.py
-  scripts/first_BT.py
-  scripts/turtle_bt.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -41,9 +44,18 @@ include_directories(include)
 add_executable(cpp_node_test src/cpp_node.cpp)
 ament_target_dependencies(cpp_node_test rclcpp)
 
+add_executable(turtlesim_plus_teleop src/teleop.cpp)
+ament_target_dependencies(turtlesim_plus_teleop 
+                          rclcpp
+                          rclcpp_action         # ← AND THIS
+                          geometry_msgs         # ← AND THIS
+                          turtlesim             # ← AND THIS
+                          )
+
 # Install Cpp executables
 install(TARGETS
   cpp_node_test
+  turtlesim_plus_teleop
   DESTINATION lib/${PROJECT_NAME}
 )
 

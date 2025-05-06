@@ -69,7 +69,7 @@ py-trees-tree-viewer
 ```
 4) Open a new terminal and run the behavior tree:
 ```bash
-ros2 run bt_turtlesim_plus turtle_bt.py
+ros2 run bt_turtlesim_plus turtle_bt_center.py
 ```
 5) Try to move to anywhere in the turtlesim and see how the behavior tree work. 
 

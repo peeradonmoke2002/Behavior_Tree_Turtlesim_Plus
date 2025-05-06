@@ -7,7 +7,11 @@ from turtlesim.msg import Pose
 from std_srvs.srv import Empty
 import math
 import numpy as np
-
+from py_trees.common import Status
+from py_trees.blackboard import Blackboard
+from geometry_msgs.msg import Twist
+from turtlesim_plus.turtlesim_plus_interfaces.msg import ScannerDataArray
+from std_srvs.srv import Empty
 
 # ── 1) New Condition leaf ───────────────────────────────
 class AtCenter(py_trees.behaviour.Behaviour):
@@ -198,3 +202,130 @@ class Stop(py_trees.behaviour.Behaviour):
     def terminate(self, new_status):
         self.logger.debug(f"Action:: [{self.name}] terminating with status {new_status}")
 
+class UpdateScan(py_trees.behaviour.Behaviour):
+    """
+    Subscribes to '/<turtle>/scan' (ScannerDataArray) and
+    stores the most recent message at bb.scan.
+    """
+    def __init__(self, name: str, node: Node):
+        super().__init__(name)
+        self.node = node
+        self.bb   = Blackboard()
+
+    def setup(self, **kwargs):
+        topic = f'/{self.node.get_name()}/scan'
+        self.node.create_subscription(
+            ScannerDataArray,
+            topic,
+            self.cb,
+            10
+        )
+        self.node.get_logger().info(f"[{self.name}] subscribing to {topic}")
+
+    def cb(self, msg: ScannerDataArray):
+        # store the entire scan array
+        self.bb.set('scan', msg)
+
+    def update(self) -> Status:
+        # always succeed—its only job is to keep bb.scan fresh
+        return Status.SUCCESS
+
+
+# ── 2) Conditions: count pizzas in the scan ────────────────────────
+class PizzaCountCondition(py_trees.behaviour.Behaviour):
+    """
+    Checks how many ScannerData of type 'Pizza' lie in bb.scan.data.
+    Success if min_count <= count <= max_count.
+    """
+    def __init__(self, name: str, node: Node, min_count: int, max_count: int):
+        super().__init__(name)
+        self.node       = node
+        self.bb         = Blackboard()
+        self.min_count  = min_count
+        self.max_count  = max_count
+
+    def update(self) -> Status:
+        scan = self.bb.get('scan')
+        if scan is None:
+            return Status.FAILURE
+        # count pizza entries
+        count = sum(1 for d in scan.data if d.type == 'Pizza')
+        ok = (self.min_count <= count <= self.max_count)
+        self.node.get_logger().debug(f"[{self.name}] pizzas={count}")
+        return Status.SUCCESS if ok else Status.FAILURE
+
+
+# ── 3) Action: avoid a single pizza ────────────────────────────────
+class AvoidPizza(py_trees.behaviour.Behaviour):
+    """
+    Simple reactive avoidance: turn away from the one pizza you see.
+    """
+    def __init__(self, name: str, node: Node):
+        super().__init__(name)
+        self.node = node
+        self.bb   = Blackboard()
+        self.pub  = None
+        self.K_angular = 1.5
+        self.forward_speed = 0.3
+
+    def setup(self, **kwargs):
+        topic = f'/{self.node.get_name()}/cmd_vel'
+        self.pub = self.node.create_publisher(Twist, topic, 10)
+        self.node.get_logger().info(f"[{self.name}] publishing to {topic}")
+
+    def update(self) -> Status:
+        scan = self.bb.get('scan')
+        if not scan or len(scan.data) != 1:
+            return Status.FAILURE  
+        pizza = scan.data[0]
+        # turn *away* from pizza
+        avoid_ang = math.atan2(
+            math.sin(pizza.angle + math.pi),
+            math.cos(pizza.angle + math.pi)
+        )
+        cmd = Twist()
+        cmd.linear.x  = self.forward_speed
+        cmd.angular.z = self.K_angular * avoid_ang
+        self.pub.publish(cmd)
+        return Status.RUNNING
+
+
+# ── 4) Action: eat when you see two or more pizzas ────────────────
+class EatPizza(py_trees.behaviour.Behaviour):
+    """
+    Calls '/<turtle>/eat' once per tick when triggered.
+    """
+    def __init__(self, name: str, node: Node):
+        super().__init__(name)
+        self.node = node
+        self.cli  = None
+
+    def setup(self, **kwargs):
+        svc = f'/{self.node.get_name()}/eat'
+        self.cli = self.node.create_client(Empty, svc)
+        self.cli.wait_for_service()
+        self.node.get_logger().info(f"[{self.name}] ready to call {svc}")
+
+    def update(self) -> Status:
+        req = Empty.Request()
+        self.cli.call(req)
+        self.node.get_logger().info(f"[{self.name}] 🍕 Ate a pizza!")
+        return Status.SUCCESS
+
+
+class MoveSquare(py_trees.behaviour.Behaviour):
+    """
+    Stub: in your real code you’d reuse the timer‐driven square mover.
+    Here we just log and return RUNNING.
+    """
+    def __init__(self, name: str, node: Node):
+        super().__init__(name)
+        self.node = node
+
+    def setup(self, **kwargs):
+        self.node.get_logger().info(f"[{self.name}] square‐traverse ready")
+
+    def update(self) -> Status:
+        # insert your own square‐traverse logic or call into your timer node
+        self.node.get_logger().debug(f"[{self.name}] traversing square…")
+        return Status.RUNNING

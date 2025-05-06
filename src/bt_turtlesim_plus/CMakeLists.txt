@@ -28,8 +28,9 @@ ament_python_install_package(${PROJECT_NAME})
 # Install Python executables
 install(PROGRAMS
   scripts/dummy_script.py
-  scripts/first_BT.py
-  scripts/turtle_bt.py
+  scripts/turtle_bt_center.py
+  scripts/turtle_bt_square.py
+  scripts/click_pos.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

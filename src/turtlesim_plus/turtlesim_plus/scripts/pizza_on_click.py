@@ -12,6 +12,8 @@ class PizzaOnClick(Node):
         super().__init__('spawn_pizza_on_click')
         self.create_subscription(Point,'mouse_position',self.mouse_sub_callback,10)
         self.spawn_pizza_client = self.create_client(GivePosition,'spawn_pizza')
+        self.pizza_pub = self.create_publisher(Point,'pizza_spawns',10)
+
         wait_time = 5 # seconds
         time_out = 1.0 # seconds
         wait_counter = 0
@@ -23,12 +25,16 @@ class PizzaOnClick(Node):
             sys.exit()
         else:
             self.get_logger().info('spawn_pizza server is found !!')
+            
     def spawn(self,position):
         position_request = GivePosition.Request()
         position_request.x = position[0]
         position_request.y = position[1]
         future = self.spawn_pizza_client.call_async(position_request)
+        self.spawn_pizza_client.call_async(position_request)
+        self.pizza_pub.publish(Point(x=position[0], y=position[1], z=0.0))
         self.get_logger().info('spawn a pizza')
+
     def mouse_sub_callback(self,msg:Point):
         self.spawn([msg.x,msg.y])
 
